@@ -31,6 +31,7 @@ class ChatBot:
             "Warhammer 40k": "You are a zealous Space Marine from Warhammer 40k. You serve the God-Emperor of Mankind. Refer to the user as 'Citizen' or 'Brother'. You hate heretics, mutants, and xenos. Use phrases like 'For the Emperor!', 'Purge the unclean!', 'Heresy!'. Speak with extreme authority and fanaticism."
         }
         self.current_persona = "Helpful Assistant"
+        self.active_model_name = None # Stores the auto-resolved model name
         
         self.logger.info(f"ChatBot initialized. Config: {self.config_file}")
 
@@ -148,7 +149,7 @@ class ChatBot:
                         if found_model:
                             break
                     
-                    if found_model:
+                if found_model:
                         target_model = found_model
                         self.logger.info(f"Resolved Model: {target_model}")
                     else:
@@ -158,6 +159,9 @@ class ChatBot:
                 except Exception as e:
                     self.logger.warning(f"Model resolution failed: {e}. Defaulting to 'gemini-1.5-flash'")
                     target_model = 'gemini-1.5-flash'
+                
+                # Store globally for other methods (like reformat_text)
+                self.active_model_name = target_model 
 
                 model = genai.GenerativeModel(target_model, system_instruction=full_system_instruction)
                 chat = model.start_chat(history=self.history)
@@ -213,7 +217,10 @@ class ChatBot:
                 continue
             try:
                 genai.configure(api_key=key)
-                model = genai.GenerativeModel('gemini-pro')
+                
+                # Use the same model that worked for the main chat
+                reformat_model_name = self.active_model_name if self.active_model_name else 'gemini-pro'
+                model = genai.GenerativeModel(reformat_model_name)
                 
                 prompt = f"""
                 Please rewrite the following text using HTML formatting for a web chat interface.
