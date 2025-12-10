@@ -113,9 +113,15 @@ class ChatBot:
                 self.logger.info(f"Attempting to use API Key #{i+1}")
                 genai.configure(api_key=key)
                 
+                from datetime import datetime
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
                 # Construct System Instruction
                 base_instruction = self.personas.get(self.current_persona, self.personas["Helpful Assistant"])
-                formatting_rules = """
+                formatting_rules = f"""
+                IMPORTANT SYSTEM CONTEXT:
+                - Current Date/Time: {current_time}
+                
                 IMPORTANT RULES:
                 1. USE STRICT MARKDOWN.
                 2. ALWAYS put a blank line before headers (###).
@@ -125,7 +131,7 @@ class ChatBot:
                 """
                 full_system_instruction = base_instruction + formatting_rules
                 
-                model = genai.GenerativeModel('gemini-flash-latest', system_instruction=full_system_instruction)
+                model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=full_system_instruction)
                 chat = model.start_chat(history=self.history)
                 
                 # Prepare message content
@@ -179,7 +185,7 @@ class ChatBot:
                 continue
             try:
                 genai.configure(api_key=key)
-                model = genai.GenerativeModel('gemini-flash-latest')
+                model = genai.GenerativeModel('gemini-1.5-flash')
                 
                 prompt = f"""
                 Please rewrite the following text using HTML formatting for a web chat interface.
