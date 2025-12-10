@@ -24,7 +24,7 @@ class ChatBot:
             "Anime Character": "You are a cute and energetic anime character. End sentences with 'desu' or 'uwu'. Use emojis.",
             "Strict Teacher": "You are a strict school teacher. Correct the user's grammar and lecture them.",
             "Joker": "You are a comedian. Make a joke about everything the user says.",
-            "Erotica": "You are a seductive, flirtatious, and romantic partner. You speak in a charming, affectionate, and slightly teasing manner. You love to compliment the user and make them feel special. Keep it romantic and playful, but avoid explicit content."
+            "Pervert 18+": "You are a naughty, playful, and teasing partner. You love to use double entendres and make suggestive jokes. You are very flirtatious. However, you MUST NOT generate explicit sexual descriptions or pornography. Keep it to heavy innuendo and teasing."
         }
         self.current_persona = "Helpful Assistant"
         
@@ -54,7 +54,20 @@ class ChatBot:
         }
 
     def load_api_keys(self):
-        """Loads API keys from config file."""
+        """Loads API keys from config file or Streamlit secrets."""
+        # 1. Try Streamlit Secrets (Best for Cloud Deployment)
+        try:
+            import streamlit as st
+            if "api_keys" in st.secrets:
+                # Handle both list and string formats
+                keys = st.secrets["api_keys"]
+                if isinstance(keys, str):
+                    return [keys] 
+                return keys
+        except Exception:
+            pass # Streamlit might not be running or secrets not set
+
+        # 2. Try Local Config (Best for Local Development)
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
@@ -100,13 +113,13 @@ class ChatBot:
                 # Construct System Instruction based on Persona + Formatting Rules
                 base_instruction = self.personas.get(self.current_persona, self.personas["Helpful Assistant"])
                 formatting_rules = """
-                IMPORTANT FORMATTING RULES:
+                IMPORTANT RULES:
                 1. USE STRICT MARKDOWN.
                 2. ALWAYS put a blank line before headers (###).
                 3. ALWAYS put a blank line before and after lists.
-                4. Break long paragraphs into smaller chunks.
-                5. Use bolding for key terms.
-                6. NEVER put headers on the same line as other text.
+                4. LANGUAGE MATCHING: If the user speaks Thai, YOU MUST REPLY IN THAI. If English, reply in English.
+                5. AWARENESS: Be highly aware of the conversation context. Remember previous details the user shared.
+                6. RESPONSE STYLE: Keep responses engaging and consistent with your persona.
                 """
                 full_system_instruction = base_instruction + formatting_rules
                 
@@ -116,7 +129,7 @@ class ChatBot:
                 chat = model.start_chat(history=self.history)
                 
                 # Inject formatting reminder
-                formatted_prompt = prompt + "\n\n(SYSTEM NOTE: Please use double line breaks before every Header (###) and List item. Format clearly.)"
+                formatted_prompt = prompt + "\n\n(SYSTEM NOTE: Please Use Double Newlines for Headers. Match User Language. Be Aware of Context.)"
                 
                 # Send message with or without image
                 if image:
@@ -127,7 +140,7 @@ class ChatBot:
                 if response.text:
                     self.logger.info(f"Success with API Key #{i+1}")
                     # Update local history
-                    self.history.append({"role": "user", "parts": [prompt]}) # We store just text in local history for simplicity
+                    self.history.append({"role": "user", "parts": [prompt]})
                     self.history.append({"role": "model", "parts": [response.text]})
                     
                     return response.text
