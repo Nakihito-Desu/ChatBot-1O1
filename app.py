@@ -8,7 +8,8 @@ from PIL import Image
 st.set_page_config(
     page_title="Smart ChatBot v2.0",
     page_icon="🤖",
-    layout="centered"
+    layout="centered",
+    initial_sidebar_state="expanded"
 )
 
 # Initialize ChatBot in session state
@@ -48,8 +49,6 @@ with st.sidebar:
 
     st.divider()
 
-    st.header("⚙️ Settings")
-    
     # Persona Selector (Restored)
     st.subheader("🎭 Persona")
     selected_persona = st.selectbox(
@@ -120,10 +119,10 @@ st.markdown("""
     h3 { color: #9CA3AF; }
     p, li { color: #ECECF1; line-height: 1.6; }
     
-    /* Hide Streamlit Header/Footer */
+    /* Hide Streamlit Footer (Keep Header visible for Sidebar toggle) */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
+    /* header {visibility: hidden;}  <- Commented out to restore sidebar toggle */
     
 </style>
 """, unsafe_allow_html=True)
