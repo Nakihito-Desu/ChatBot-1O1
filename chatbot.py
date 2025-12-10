@@ -131,7 +131,7 @@ class ChatBot:
                 """
                 full_system_instruction = base_instruction + formatting_rules
                 
-                model = genai.GenerativeModel('gemini-2.5-flash', system_instruction=full_system_instruction)
+                model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=full_system_instruction)
                 chat = model.start_chat(history=self.history)
                 
                 # Prepare message content
