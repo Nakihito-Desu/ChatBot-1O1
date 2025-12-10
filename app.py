@@ -19,9 +19,53 @@ if "bot" not in st.session_state:
         st.error(f"Failed to initialize ChatBot: {e}")
         st.stop()
 
-# Initialize chat history
+# Initialize chat history for UI
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+# Initialize processing state (Fix for KeyError)
+if "processing" not in st.session_state:
+    st.session_state.processing = False
+
+# Sidebar for controls
+with st.sidebar:
+    st.title("🤖 SmartBot")
+    if st.button("➕ New Chat", use_container_width=True):
+        st.session_state.messages = []
+        if "bot" in st.session_state:
+            st.session_state.bot.history = []
+        st.rerun()
+
+    # Chat History Summary (New Feature)
+    st.subheader("🕑 History Log")
+    if st.session_state.messages:
+        for i, msg in enumerate(st.session_state.messages):
+            if msg["role"] == "user":
+                # Show first 20 chars of user messages
+                st.caption(f"You: {msg['content'][:20]}...")
+    else:
+        st.caption("No history yet.")
+
+    st.divider()
+
+    st.header("⚙️ Settings")
+    
+    # Persona Selector (Restored)
+    st.subheader("🎭 Persona")
+    selected_persona = st.selectbox(
+        "Choose Character:",
+        options=list(st.session_state.bot.personas.keys()),
+        index=0
+    )
+    st.session_state.bot.set_persona(selected_persona)
+
+    # Regenerate Button (Restored)
+    if st.session_state.messages and st.session_state.messages[-1]["role"] == "assistant":
+        if st.button("🔄 Regenerate Response", use_container_width=True):
+            st.session_state.messages.pop() # Remove last assistant message
+            st.rerun()
+
+    st.divider()
 
 # Custom CSS for better aesthetics
 st.markdown("""
@@ -84,35 +128,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar for controls
-with st.sidebar:
-    st.title("🤖 SmartBot")
-    if st.button("➕ New Chat", use_container_width=True):
-        st.session_state.messages = []
-        if "bot" in st.session_state:
-            st.session_state.bot.history = []
-        st.rerun()
-        
-    # Regenerate Button (Only show if last message is from assistant)
-    if st.session_state.messages and st.session_state.messages[-1]["role"] == "assistant":
-        if st.button("🔄 Regenerate Response", use_container_width=True):
-            st.session_state.messages.pop() # Remove last assistant message
-            st.rerun() # Rerun to trigger generation
-        
-    st.divider()
-    
-    st.header("⚙️ Settings")
-    
-    # Persona Selector
-    st.subheader("🎭 Persona")
-    selected_persona = st.selectbox(
-        "Choose Character:",
-        options=list(st.session_state.bot.personas.keys()),
-        index=0
-    )
-    st.session_state.bot.set_persona(selected_persona)
-    
-    st.divider()
+
     
 # --- File Uploader Logic (Main Area) ---
 # Use a key that we can increment to reset the uploader
