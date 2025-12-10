@@ -132,7 +132,34 @@ class ChatBot:
                 """
                 full_system_instruction = base_instruction + formatting_rules
                 
-                model = genai.GenerativeModel('gemini-2.5-flash', system_instruction=full_system_instruction)
+                # DYNAMIC MODEL RESOLUTION (Fix for 404/Quota issues)
+                target_model = 'gemini-1.5-flash' # Default goal
+                try:
+                    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                    # Priority list
+                    priorities = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-pro']
+                    
+                    found_model = None
+                    for p in priorities:
+                        for m in available_models:
+                            if p in m:
+                                found_model = m
+                                break
+                        if found_model:
+                            break
+                    
+                    if found_model:
+                        target_model = found_model
+                        self.logger.info(f"Resolved Model: {target_model}")
+                    else:
+                        self.logger.warning("Could not resolve specific model, using default 'gemini-pro'")
+                        target_model = 'gemini-pro'
+                        
+                except Exception as e:
+                    self.logger.warning(f"Model resolution failed: {e}. Defaulting to 'gemini-1.5-flash'")
+                    target_model = 'gemini-1.5-flash'
+
+                model = genai.GenerativeModel(target_model, system_instruction=full_system_instruction)
                 chat = model.start_chat(history=self.history)
                 
                 # Prepare message content
