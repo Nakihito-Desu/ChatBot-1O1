@@ -134,33 +134,38 @@ class ChatBot:
                 full_system_instruction = base_instruction + formatting_rules
                 
                 # DYNAMIC MODEL RESOLUTION (Fix for 404/Quota issues)
+                # DYNAMIC MODEL RESOLUTION (Fix for 404/Quota issues)
                 target_model = 'gemini-1.5-flash' # Default goal
+                
+                # Check what models are ACTUALLY available
                 try:
-                    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                    # Priority list
-                    priorities = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-pro']
-                    
-                    found_model = None
-                    for p in priorities:
-                        for m in available_models:
-                            if p in m:
-                                found_model = m
-                                break
-                        if found_model:
-                            break
-                    
-                    if found_model:
-                        target_model = found_model
-                        self.logger.info(f"Resolved Model: {target_model}")
-                    else:
-                        # DEBUG: Cause an error visible to user so we can see what IS available
-                        error_msg = f"CRITICAL: No matching models found! API returned: {available_models}"
-                        self.logger.error(error_msg)
-                        raise ValueError(error_msg)
-                        
+                    all_models = genai.list_models()
+                    available_models = [m.name for m in all_models if 'generateContent' in m.supported_generation_methods]
                 except Exception as e:
-                    self.logger.warning(f"Model resolution failed: {e}. Defaulting to 'gemini-1.5-flash'")
-                    target_model = 'gemini-1.5-flash'
+                    # If list_models fails (e.g. auth error), we can't do dynamic resolution.
+                    self.logger.error(f"Failed to list models: {e}")
+                    available_models = []
+
+                # Priority list
+                priorities = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-pro']
+                
+                found_model = None
+                for p in priorities:
+                    for m in available_models:
+                        if p in m:
+                            found_model = m
+                            break
+                    if found_model:
+                        break
+                
+                if found_model:
+                    target_model = found_model
+                    self.logger.info(f"Resolved Model: {target_model}")
+                else:
+                    # DEBUG: Cause an error visible to user so we can see what IS available
+                    error_msg = f"CRITICAL: No matching models found! API returned: {available_models}"
+                    self.logger.error(error_msg)
+                    raise ValueError(error_msg) # This will now propagate up!
                 
                 # Store globally for other methods (like reformat_text)
                 self.active_model_name = target_model 
