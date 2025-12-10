@@ -153,8 +153,10 @@ class ChatBot:
                         target_model = found_model
                         self.logger.info(f"Resolved Model: {target_model}")
                     else:
-                        self.logger.warning("Could not resolve specific model, using default 'gemini-pro'")
-                        target_model = 'gemini-pro'
+                        # DEBUG: Cause an error visible to user so we can see what IS available
+                        error_msg = f"CRITICAL: No matching models found! API returned: {available_models}"
+                        self.logger.error(error_msg)
+                        raise ValueError(error_msg)
                         
                 except Exception as e:
                     self.logger.warning(f"Model resolution failed: {e}. Defaulting to 'gemini-1.5-flash'")
