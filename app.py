@@ -135,12 +135,23 @@ st.markdown("""
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
 
-with st.expander("📎 Attach File / แนบไฟล์ (Image, Excel, CSV)", expanded=False):
+# Popover for a cleaner "Plus Button" feel
+with st.popover("➕", help="Add attachments / เพิ่มไฟล์"):
     uploaded_file = st.file_uploader(
-        "Upload a file", 
+        "Upload Image/Excel/CSV", 
         type=['png', 'jpg', 'jpeg', 'xlsx', 'xls', 'csv'], 
         key=f"file_uploader_{st.session_state.uploader_key}"
     )
+
+# Attachment Preview (Show what's ready to send)
+if uploaded_file:
+    col1, col2 = st.columns([0.1, 0.9])
+    with col1:
+        st.write("📎")
+    with col2:
+        st.caption(f"Ready to send: **{uploaded_file.name}**")
+        if uploaded_file.name.split('.')[-1].lower() in ['png', 'jpg', 'jpeg']:
+            st.image(uploaded_file, width=100)
 
 # Accept user input
 if prompt := st.chat_input("Send a message...", disabled=st.session_state.processing):
