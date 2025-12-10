@@ -114,41 +114,76 @@ with st.sidebar:
     
     st.divider()
     
-    # Image Uploader
-    st.subheader("📷 Vision")
-    uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
-    image = None
-    if uploaded_file:
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Uploaded Image", use_column_width=True)
+# --- File Uploader Logic (Main Area) ---
+# Use a key that we can increment to reset the uploader
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 0
 
-# Display chat messages from history
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"], unsafe_allow_html=True)
-
-# Initialize processing state
-if "processing" not in st.session_state:
-    st.session_state.processing = False
+with st.expander("📎 Attach File / แนบไฟล์ (Image, Excel, CSV)", expanded=False):
+    uploaded_file = st.file_uploader(
+        "Upload a file", 
+        type=['png', 'jpg', 'jpeg', 'xlsx', 'xls', 'csv'], 
+        key=f"file_uploader_{st.session_state.uploader_key}"
+    )
 
 # Accept user input
 if prompt := st.chat_input("Send a message...", disabled=st.session_state.processing):
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
+    
+    # Check for attached file
+    if uploaded_file:
+        file_type = uploaded_file.name.split('.')[-1].lower()
+        if file_type in ['png', 'jpg', 'jpeg']:
+            image = Image.open(uploaded_file)
+            st.session_state.messages.append({"role": "user", "content": f"*[Attached Image: {uploaded_file.name}]*"})
+            # Store temporarily for processing
+            st.session_state.temp_file = image
+            st.session_state.temp_file_type = file_type
+        else:
+            # Excel/CSV
+            st.session_state.messages.append({"role": "user", "content": f"*[Attached File: {uploaded_file.name}]*"})
+            st.session_state.temp_file = uploaded_file
+            st.session_state.temp_file_type = file_type
+    else:
+        st.session_state.temp_file = None
+        st.session_state.temp_file_type = None
+
     st.session_state.processing = True
-    st.rerun() # Rerun to update UI and trigger response generation
+    st.rerun() 
 
 # Generate response if last message is from user
-if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
+# We need to detect if we should generate. 
+# Logic: If last msg is user OR (second to last is user and last is attachment note).
+# Actually, we appending prompt THEN attachment note above. So last msg is attachment note if file exists.
+# If no file, last msg is prompt.
+# Detection logic:
+should_generate = False
+if st.session_state.messages:
+    last_msg = st.session_state.messages[-1]
+    if last_msg["role"] == "user":
+        should_generate = True
+
+if should_generate:
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         full_response = ""
-        prompt = st.session_state.messages[-1]["content"]
+        
+        # Find the actual text prompt (it might be the last message, or the one before the attachment note)
+        user_text = "..."
+        for msg in reversed(st.session_state.messages):
+            if msg["role"] == "user" and not msg["content"].startswith("*[Attached"):
+                user_text = msg["content"]
+                break
         
         with st.spinner("Thinking..."):
             try:
-                # Get response from bot (Pass image if exists)
-                response = st.session_state.bot.get_response(prompt, image=image)
+                # Get response from bot
+                response = st.session_state.bot.get_response(
+                    user_text, 
+                    file_data=st.session_state.get("temp_file"), 
+                    file_type=st.session_state.get("temp_file_type")
+                )
                 
                 # Handle "I don't know" case
                 if response is None:
@@ -167,5 +202,11 @@ if st.session_state.messages and st.session_state.messages[-1]["role"] == "user"
                 st.error(f"An error occurred: {e}")
                 response = "Error generating response."
             finally:
+                # Clean up logic
+                st.session_state.temp_file = None
+                st.session_state.temp_file_type = None
                 st.session_state.processing = False
+                
+                # Reset uploader by incrementing key
+                st.session_state.uploader_key += 1
                 st.rerun()

@@ -3,6 +3,8 @@ import random
 import json
 import os
 import google.generativeai as genai
+import pandas as pd
+from PIL import Image
 
 class ChatBot:
     def __init__(self, knowledge_file="knowledge.json", config_file="config.json"):
@@ -96,7 +98,7 @@ class ChatBot:
         self.save_knowledge()
         self.logger.info(f"Learned new response for '{normalized_question}': {answer}")
 
-    def call_gemini(self, prompt, image=None):
+    def call_gemini(self, prompt, file_data=None, file_type=None):
         """Calls Google Gemini API with key rotation and history."""
         if not self.api_keys:
             self.logger.warning("No API keys found in config.json.")
@@ -110,40 +112,55 @@ class ChatBot:
                 self.logger.info(f"Attempting to use API Key #{i+1}")
                 genai.configure(api_key=key)
                 
-                # Construct System Instruction based on Persona + Formatting Rules
+                # Construct System Instruction
                 base_instruction = self.personas.get(self.current_persona, self.personas["Helpful Assistant"])
                 formatting_rules = """
                 IMPORTANT RULES:
                 1. USE STRICT MARKDOWN.
                 2. ALWAYS put a blank line before headers (###).
                 3. ALWAYS put a blank line before and after lists.
-                4. LANGUAGE MATCHING: If the user speaks Thai, YOU MUST REPLY IN THAI. If English, reply in English.
-                5. AWARENESS: Be highly aware of the conversation context. Remember previous details the user shared.
-                6. RESPONSE STYLE: Keep responses engaging and consistent with your persona.
+                4. LANGUAGE MATCHING: If the user speaks Thai, YOU MUST REPLY IN THAI.
+                5. AWARENESS: Be highly aware of the conversation context.
                 """
                 full_system_instruction = base_instruction + formatting_rules
                 
                 model = genai.GenerativeModel('gemini-flash-latest', system_instruction=full_system_instruction)
-                
-                # Start chat with existing history
                 chat = model.start_chat(history=self.history)
                 
-                # Inject formatting reminder
-                formatted_prompt = prompt + "\n\n(SYSTEM NOTE: Please Use Double Newlines for Headers. Match User Language. Be Aware of Context.)"
+                # Prepare message content
+                message_parts = [prompt + "\n\n(SYSTEM NOTE: Format clearly using Markdown.)"]
                 
-                # Send message with or without image
-                if image:
-                    response = chat.send_message([formatted_prompt, image])
-                else:
-                    response = chat.send_message(formatted_prompt)
+                # Handle File Attachments
+                if file_data:
+                    if file_type in ['png', 'jpg', 'jpeg']:
+                        self.logger.info("Attaching Image...")
+                        message_parts.append(file_data) # PIL Image
+                    elif file_type in ['csv', 'xlsx', 'xls']:
+                        self.logger.info(f"Processing Spreadsheet ({file_type})...")
+                        # Convert spreadsheet to textual representation
+                        try:
+                            if file_type == 'csv':
+                                df = pd.read_csv(file_data)
+                            else:
+                                df = pd.read_excel(file_data)
+                            
+                            # Limit data to prevent token overflow (e.g., first 50 rows)
+                            data_preview = df.head(50).to_markdown(index=False)
+                            context_msg = f"\n\n[ATTACHED DATA - First 50 rows]\n{data_preview}\n\n"
+                            message_parts[0] += context_msg
+                        except Exception as e:
+                            self.logger.error(f"Error reading spreadsheet: {e}")
+                            message_parts[0] += f"\n\n(Error reading attached file: {str(e)})"
+
+                response = chat.send_message(message_parts)
                 
                 if response.text:
                     self.logger.info(f"Success with API Key #{i+1}")
-                    # Update local history
+                    # Update local history (Store text representation only)
                     self.history.append({"role": "user", "parts": [prompt]})
                     self.history.append({"role": "model", "parts": [response.text]})
-                    
                     return response.text
+                    
             except Exception as e:
                 self.logger.warning(f"API Key #{i+1} failed: {e}. Trying next key...")
         
@@ -181,48 +198,35 @@ class ChatBot:
                 
                 response = model.generate_content(prompt)
                 if response.text:
-                    # Strip any markdown code blocks if the model adds them
                     clean_html = response.text.replace("```html", "").replace("```", "").strip()
                     return clean_html
             except Exception:
                 continue
         
-        return text # Fallback to original text if AI fails
+        return text 
 
-    def get_response(self, user_input, image=None):
+    def get_response(self, user_input, file_data=None, file_type=None):
         """
-        Determines the response based on user input.
-        Priority:
-        1. Local Knowledge (Exact Match) - ONLY if no image is provided
-        2. Google Gemini API (AI Fallback)
-        3. Interactive Learning (If AI fails)
+        Determines the response based on user input and optional file attachment.
         """
         try:
-            if not user_input and not image:
+            if not user_input and not file_data:
                 return "..."
 
-            normalized_input = user_input.lower().strip()
-            self.logger.debug(f"Processing input: {normalized_input}")
-
             # 1. Check Local Knowledge (Only if text-only query)
-            if not image and normalized_input in self.responses:
+            normalized_input = user_input.lower().strip()
+            if not file_data and normalized_input in self.responses:
                 import random
-                self.logger.info(f"Local match found for: {user_input}")
                 return random.choice(self.responses[normalized_input])
                 
             # 2. Call Google Gemini API
-            self.logger.info("No local match found (or image provided). Trying Google AI...")
-            ai_response = self.call_gemini(user_input, image=image)
+            ai_response = self.call_gemini(user_input, file_data=file_data, file_type=file_type)
             if ai_response:
                 return ai_response
                 
-            # 3. Fallback to Learning (Only for text)
-            if not image:
-                self.logger.info(f"No match found (Local or AI) for: {normalized_input}")
-                return None # Signal to main loop to enter learning mode
-            else:
-                return "I'm sorry, I couldn't process the image."
+            # 3. Fallback
+            return "I'm sorry, I couldn't understand that."
 
         except Exception as e:
-            self.logger.error(f"Error processing input '{user_input}': {e}", exc_info=True)
+            self.logger.error(f"Error processing input: {e}", exc_info=True)
             return "Oops! Something went wrong internally."
