@@ -149,7 +149,7 @@ class ChatBot:
                         if found_model:
                             break
                     
-                if found_model:
+                    if found_model:
                         target_model = found_model
                         self.logger.info(f"Resolved Model: {target_model}")
                     else:
