@@ -37,16 +37,6 @@ with st.sidebar:
             st.session_state.bot.history = []
         st.rerun()
 
-    # Chat History Summary (New Feature)
-    st.subheader("🕑 History Log")
-    if st.session_state.messages:
-        for i, msg in enumerate(st.session_state.messages):
-            if msg["role"] == "user":
-                # Show first 20 chars of user messages
-                st.caption(f"You: {msg['content'][:20]}...")
-    else:
-        st.caption("No history yet.")
-
     st.divider()
 
     # Persona Selector (Restored)
@@ -152,87 +142,67 @@ if uploaded_file:
         if uploaded_file.name.split('.')[-1].lower() in ['png', 'jpg', 'jpeg']:
             st.image(uploaded_file, width=100)
 
+# Display chat messages from history
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"], unsafe_allow_html=True)
+
 # Accept user input
 if prompt := st.chat_input("Send a message...", disabled=st.session_state.processing):
-    # Add user message to chat history
+    # 1. Display User Message Immediately
     st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
     
-    # Check for attached file
+    # Check for attached file (Current State)
+    temp_file = None
+    temp_file_type = None
     if uploaded_file:
         file_type = uploaded_file.name.split('.')[-1].lower()
         if file_type in ['png', 'jpg', 'jpeg']:
-            image = Image.open(uploaded_file)
+            temp_file = Image.open(uploaded_file)
             st.session_state.messages.append({"role": "user", "content": f"*[Attached Image: {uploaded_file.name}]*"})
-            # Store temporarily for processing
-            st.session_state.temp_file = image
-            st.session_state.temp_file_type = file_type
+            with st.chat_message("user"):
+                st.markdown(f"*[Attached Image: {uploaded_file.name}]*")
+            temp_file_type = file_type
         else:
             # Excel/CSV
+            temp_file = uploaded_file
             st.session_state.messages.append({"role": "user", "content": f"*[Attached File: {uploaded_file.name}]*"})
-            st.session_state.temp_file = uploaded_file
-            st.session_state.temp_file_type = file_type
-    else:
-        st.session_state.temp_file = None
-        st.session_state.temp_file_type = None
+            with st.chat_message("user"):
+                st.markdown(f"*[Attached File: {uploaded_file.name}]*")
+            temp_file_type = file_type
 
-    st.session_state.processing = True
-    st.rerun() 
-
-# Generate response if last message is from user
-# We need to detect if we should generate. 
-# Logic: If last msg is user OR (second to last is user and last is attachment note).
-# Actually, we appending prompt THEN attachment note above. So last msg is attachment note if file exists.
-# If no file, last msg is prompt.
-# Detection logic:
-should_generate = False
-if st.session_state.messages:
-    last_msg = st.session_state.messages[-1]
-    if last_msg["role"] == "user":
-        should_generate = True
-
-if should_generate:
+    # 2. Generate Response Immediately (No Rerun)
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        full_response = ""
-        
-        # Find the actual text prompt (it might be the last message, or the one before the attachment note)
-        user_text = "..."
-        for msg in reversed(st.session_state.messages):
-            if msg["role"] == "user" and not msg["content"].startswith("*[Attached"):
-                user_text = msg["content"]
-                break
-        
         with st.spinner("Thinking..."):
             try:
+                st.session_state.processing = True
+                
                 # Get response from bot
                 response = st.session_state.bot.get_response(
-                    user_text, 
-                    file_data=st.session_state.get("temp_file"), 
-                    file_type=st.session_state.get("temp_file_type")
+                    prompt, 
+                    file_data=temp_file, 
+                    file_type=temp_file_type
                 )
                 
-                # Handle "I don't know" case
                 if response is None:
                     response = "I'm sorry, I don't know the answer to that yet."
                 
-                # Post-processing: AI REFORMATTING (HTML Strategy)
+                # Post-processing
                 html_response = st.session_state.bot.reformat_text(response)
                 
-                # Render HTML directly
+                # Render
                 message_placeholder.markdown(html_response, unsafe_allow_html=True)
                 
-                # Add assistant message to chat history
+                # Update history
                 st.session_state.messages.append({"role": "assistant", "content": html_response})
                 
             except Exception as e:
                 st.error(f"An error occurred: {e}")
-                response = "Error generating response."
             finally:
-                # Clean up logic
-                st.session_state.temp_file = None
-                st.session_state.temp_file_type = None
                 st.session_state.processing = False
-                
-                # Reset uploader by incrementing key
+                # Increment uploader key for next interaction to clear it visuals eventually, 
+                # but NOT forcing rerun keeps the chat snappy.
                 st.session_state.uploader_key += 1
-                st.rerun()
