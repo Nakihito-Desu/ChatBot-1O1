@@ -1,0 +1,27 @@
+{
+    "hello": [
+        "Hello there!",
+        "Hi!",
+        "Greetings!"
+    ],
+    "hi": [
+        "Hello!",
+        "Hi there!",
+        "Hey!"
+    ],
+    "how are you": [
+        "I'm just a bot, but I'm doing great! How about you?",
+        "I'm functioning within normal parameters."
+    ],
+    "bye": [
+        "Goodbye!",
+        "See you later!",
+        "Have a nice day!"
+    ],
+    "help": [
+        "I can chat with you. Try saying 'hello' or 'how are you'. Type 'exit' to quit."
+    ],
+    "unknown_phrase_123": [
+        "Test Answer"
+    ]
+}
